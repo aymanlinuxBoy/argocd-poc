@@ -1,0 +1,81 @@
+discovery.kubernetes "pods" {
+  role = "pod"
+}
+
+discovery.kubernetes "events" {
+  role = "event"
+}
+
+discovery.relabel "pod_logs" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    target_label  = "namespace"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label  = "pod"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_name"]
+    target_label  = "container"
+  }
+
+  rule {
+    target_label = "cluster"
+    replacement  = "upstream"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "kubernetes-pods"
+  }
+}
+
+discovery.relabel "k8s_events" {
+  targets = discovery.kubernetes.events.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    target_label  = "namespace"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_event_name"]
+    target_label  = "event"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_event_reason"]
+    target_label  = "reason"
+  }
+
+  rule {
+    target_label = "cluster"
+    replacement  = "upstream"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "kubernetes-events"
+  }
+}
+
+loki.source.kubernetes "pod_logs" {
+  targets    = discovery.relabel.pod_logs.output
+  forward_to = [loki.write.central.receiver]
+}
+
+loki.source.kubernetes "k8s_events" {
+  targets    = discovery.relabel.k8s_events.output
+  forward_to = [loki.write.central.receiver]
+}
+
+loki.write "central" {
+  endpoint {
+    url = "http://176.57.189.45:30100/loki/api/v1/push"
+  }
+}
